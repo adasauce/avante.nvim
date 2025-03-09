@@ -384,8 +384,17 @@ function M.debug(...)
 
   local args = { ... }
   if #args == 0 then return end
+
+  -- Get caller information
+  local info = debug.getinfo(2, "Sl")
+  local caller_source = info.source:match("@(.+)$") or "unknown"
+  local caller_module = caller_source:gsub("^.*/lua/", ""):gsub("%.lua$", ""):gsub("/", ".")
+
   local timestamp = os.date("%Y-%m-%d %H:%M:%S")
-  local formated_args = { "[" .. timestamp .. "] [AVANTE] [DEBUG]" }
+  local formated_args = {
+    "[" .. timestamp .. "] [AVANTE] [DEBUG] [" .. caller_module .. ":" .. info.currentline .. "]"
+  }
+
   for _, arg in ipairs(args) do
     if type(arg) == "string" then
       table.insert(formated_args, arg)
@@ -529,6 +538,7 @@ function M.is_type(type_name, v)
 
   return type(v) == type_name
 end
+
 -- luacheck: pop
 
 ---@param code string
@@ -587,12 +597,12 @@ function M.trim_line_number(line) return line:gsub("^L%d+: ", "") end
 
 function M.trim_all_line_numbers(content)
   return vim
-    .iter(vim.split(content, "\n"))
-    :map(function(line)
-      local new_line = M.trim_line_number(line)
-      return new_line
-    end)
-    :join("\n")
+      .iter(vim.split(content, "\n"))
+      :map(function(line)
+        local new_line = M.trim_line_number(line)
+        return new_line
+      end)
+      :join("\n")
 end
 
 function M.debounce(func, delay)
@@ -752,25 +762,25 @@ function M.scan_directory(options)
   local files = vim.fn.systemlist(cmd)
 
   files = vim
-    .iter(files)
-    :map(function(file)
-      local p = Path:new(file)
-      if not p:is_absolute() then return tostring(Path:new(options.directory):joinpath(file):absolute()) end
-      return file
-    end)
-    :totable()
+      .iter(files)
+      :map(function(file)
+        local p = Path:new(file)
+        if not p:is_absolute() then return tostring(Path:new(options.directory):joinpath(file):absolute()) end
+        return file
+      end)
+      :totable()
 
   if options.max_depth ~= nil and not cmd_supports_max_depth then
     files = vim
-      .iter(files)
-      :filter(function(file)
-        local base_dir = options.directory
-        if base_dir:sub(-2) == "/." then base_dir = base_dir:sub(1, -3) end
-        local rel_path = tostring(Path:new(file):make_relative(base_dir))
-        local pieces = vim.split(rel_path, "/")
-        return #pieces <= options.max_depth
-      end)
-      :totable()
+        .iter(files)
+        :filter(function(file)
+          local base_dir = options.directory
+          if base_dir:sub(-2) == "/." then base_dir = base_dir:sub(1, -3) end
+          local rel_path = tostring(Path:new(file):make_relative(base_dir))
+          local pieces = vim.split(rel_path, "/")
+          return #pieces <= options.max_depth
+        end)
+        :totable()
   end
 
   if options.add_dirs then
@@ -919,23 +929,23 @@ local severity = {
 function M.get_diagnostics(bufnr)
   if bufnr == nil then bufnr = api.nvim_get_current_buf() end
   local diagnositcs = ---@type vim.Diagnostic[]
-    vim.diagnostic.get(
-      bufnr,
-      { severity = { vim.diagnostic.severity.ERROR, vim.diagnostic.severity.WARN, vim.diagnostic.severity.HINT } }
-    )
+      vim.diagnostic.get(
+        bufnr,
+        { severity = { vim.diagnostic.severity.ERROR, vim.diagnostic.severity.WARN, vim.diagnostic.severity.HINT } }
+      )
   return vim
-    .iter(diagnositcs)
-    :map(function(diagnostic)
-      local d = {
-        content = diagnostic.message,
-        start_line = diagnostic.lnum + 1,
-        end_line = diagnostic.end_lnum and diagnostic.end_lnum + 1 or diagnostic.lnum + 1,
-        severity = severity[diagnostic.severity],
-        source = diagnostic.source,
-      }
-      return d
-    end)
-    :totable()
+      .iter(diagnositcs)
+      :map(function(diagnostic)
+        local d = {
+          content = diagnostic.message,
+          start_line = diagnostic.lnum + 1,
+          end_line = diagnostic.end_lnum and diagnostic.end_lnum + 1 or diagnostic.lnum + 1,
+          severity = severity[diagnostic.severity],
+          source = diagnostic.source,
+        }
+        return d
+      end)
+      :totable()
 end
 
 ---@param bufnr integer
